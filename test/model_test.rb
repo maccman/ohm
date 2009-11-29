@@ -33,6 +33,9 @@ class Event < Ohm::Model
   set :attendees, Person
 
   attribute :slug
+  
+  attribute :data
+  serialize :data
 
   def write
     self.slug = name.to_s.downcase
@@ -276,6 +279,15 @@ class TestRedis < Test::Unit::TestCase
       assert_equal Array.new, Ohm.redis.list(ModelToBeDeleted.key(id, :bars))
 
       assert ModelToBeDeleted.all.empty?
+    end
+  end
+  
+  context "Serialization" do
+    should "serialize attributes correctly" do
+      data  = {"one point five" => 1.5}
+      event = Event.create(:data => data)
+      event = Event[event.id]
+      assert_equal data, event.data
     end
   end
 
@@ -522,6 +534,10 @@ class TestRedis < Test::Unit::TestCase
       @post.comments.replace(["1", "2"])
 
       assert_equal ["1", "2"], @post.comments.raw
+    end
+    
+    should "be set by calling attribute=" do
+      @post.comments = ["1", "2"]
     end
 
     should "add models" do
