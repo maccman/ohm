@@ -415,6 +415,7 @@ module Ohm
       raise RedefinitionError, name if collections.include?(name)
 
       attr_list_reader(name, model)
+      attr_collection_writer(name, model)
       collections << name
     end
 
@@ -427,6 +428,7 @@ module Ohm
       raise RedefinitionError, name if collections.include?(name)
 
       attr_set_reader(name, model)
+      attr_collection_writer(name, model)
       collections << name
     end
 
@@ -455,6 +457,12 @@ module Ohm
       define_method(name) do
         instance_variable_get("@#{name}") ||
           instance_variable_set("@#{name}", Attributes::List.new(db, key(name), model))
+      end
+    end
+    
+    def self.attr_collection_writer(name, model = nil)
+      define_method(name.to_s + "=") do |values|
+        send(name).replace(values)
       end
     end
 
