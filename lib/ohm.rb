@@ -367,6 +367,7 @@ module Ohm
     @@collections = Hash.new { |hash, key| hash[key] = [] }
     @@counters = Hash.new { |hash, key| hash[key] = [] }
     @@indices = Hash.new { |hash, key| hash[key] = [] }
+    @@serialized = Hash.new { |hash, key| hash[key] = [] }
 
     attr_writer :id
 
@@ -463,6 +464,18 @@ module Ohm
           instance_variable_set("@#{name}", Attributes::Set.new(db, key(name), model))
       end
     end
+    
+    def self.serialize(att)
+      serialized << att
+    end
+    
+    def self.serialized
+    	@@serialized[self]
+    end
+    
+    def serialized
+    	self.class.serialized
+    end
 
     def self.[](id)
       new(:id => id) if exists?(id)
@@ -490,6 +503,10 @@ module Ohm
 
     def self.indices
       @@indices[self]
+    end
+    
+    def self.serialized
+    	@@serialized[self]
     end
 
     def self.create(*args)
@@ -595,6 +612,10 @@ module Ohm
     def indices
       self.class.indices
     end
+    
+    def serialized
+    	self.class.serialized
+    end
 
     def ==(other)
       other.kind_of?(self.class) && other.key == key
@@ -642,7 +663,7 @@ module Ohm
     def write_with_set
       attributes.each do |att|
         (value = send(att)) ?
-          db.set(key(att), value) :
+          db.set(key(att), serialized_value(att, value)) :
           db.del(key(att))
       end
     end
@@ -652,7 +673,9 @@ module Ohm
     # available once MSET becomes standard.
     def write_with_mset
       unless attributes.empty?
-        rems, adds = attributes.map { |a| [key(a), send(a)] }.partition { |t| t.last.nil? }
+        rems, adds = attributes.map { |a| 
+          [key(a), serialized_value(a, send(a))] 
+        }.partition { |t| t.last.nil? }
         db.del(*rems.flatten.compact) unless rems.empty?
         db.mset(adds.flatten)         unless adds.empty?
       end
@@ -734,9 +757,19 @@ module Ohm
     def write_local(att, value)
       @_attributes[att] = value
     end
+    
+    def serialized_value(att, val)
+      serialized.include?(att) ? val.to_json : val
+	  end
+	  
+	  # TODO - extend to lists/sets
+	  def deserialized_value(att, val)
+			return unless val
+	    serialized.include?(att) ? JSON.parse(val) : val
+	  end
 
     def read_remote(att)
-      db.get(key(att)) unless new?
+      deserialized_value(att, db.get(key(att))) unless new?
     end
 
     def read_locals(attrs)
